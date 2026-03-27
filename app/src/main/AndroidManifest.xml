@@ -2,7 +2,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="com.ainirobot.coreservice.robotSettingProvider" />
+    <!-- 开机自启动权限（需要时取消注释）
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    -->
+
+    <uses-feature android:name="android.hardware.camera2" android:required="false" />
+
     <application
+        android:name=".MainApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -16,10 +26,24 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- 开机自启动 intent-filter（需要时取消注释）
+            <intent-filter>
+                <action android:name="action.orionstar.default.app" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            -->
         </activity>
+
+        <activity android:name=".tts.TtsActivity" android:exported="false" />
+        <activity android:name=".tts.TtsStreamActivity" android:exported="false" />
+        <activity android:name=".asr.AsrActivity" android:exported="false" />
+        <activity android:name=".chassis.ChassisActivity" android:exported="false" />
+        <activity android:name=".location.LocationActivity" android:exported="false" />
+        <activity android:name=".position.PositionActivity" android:exported="false" />
+        <activity android:name=".camera.CameraActivity" android:exported="false" />
+        <activity android:name=".systeminfo.SystemInfoActivity" android:exported="false" />
     </application>
 
 </manifest>

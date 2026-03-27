@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <Button
+                android:id="@+id/btn_back_home"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="← 首页"
+                android:textSize="13sp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="12dp"
+                android:layout_marginEnd="12dp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="底盘 &amp; 云台控制"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- 左侧：底盘控制 -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="底盘移动"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#333333"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="速度0.3m/s"
+                    android:textSize="12sp"
+                    android:textColor="#999999"
+                    android:layout_marginBottom="12dp" />
+
+                <Button
+                    android:id="@+id/btn_forward"
+                    android:layout_width="140dp"
+                    android:layout_height="wrap_content"
+                    android:text="前进1米" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="6dp">
+
+                    <Button
+                        android:id="@+id/btn_turn_left"
+                        android:layout_width="100dp"
+                        android:layout_height="wrap_content"
+                        android:text="左转50°"
+                        android:layout_marginEnd="12dp" />
+
+                    <Button
+                        android:id="@+id/btn_turn_right"
+                        android:layout_width="100dp"
+                        android:layout_height="wrap_content"
+                        android:text="右转50°" />
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/btn_backward"
+                    android:layout_width="140dp"
+                    android:layout_height="wrap_content"
+                    android:text="后退1米"
+                    android:layout_marginTop="6dp" />
+
+                <Button
+                    android:id="@+id/btn_chassis_stop"
+                    android:layout_width="140dp"
+                    android:layout_height="wrap_content"
+                    android:text="停止"
+                    android:layout_marginTop="16dp"
+                    android:backgroundTint="#FF5252" />
+            </LinearLayout>
+
+            <!-- 分隔线 -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:layout_marginVertical="16dp"
+                android:background="#DDDDDD" />
+
+            <!-- 右侧：云台控制 -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="云台控制（上下）"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#333333"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="仅豹二、小宝支持"
+                    android:textSize="12sp"
+                    android:textColor="#FF9800"
+                    android:layout_marginBottom="16dp" />
+
+                <Button
+                    android:id="@+id/btn_head_up"
+                    android:layout_width="140dp"
+                    android:layout_height="wrap_content"
+                    android:text="云台上仰" />
+
+                <Button
+                    android:id="@+id/btn_head_down"
+                    android:layout_width="140dp"
+                    android:layout_height="wrap_content"
+                    android:text="云台下俯"
+                    android:layout_marginTop="8dp" />
+
+                <Button
+                    android:id="@+id/btn_head_reset"
+                    android:layout_width="140dp"
+                    android:layout_height="wrap_content"
+                    android:text="云台复位"
+                    android:layout_marginTop="16dp"
+                    android:backgroundTint="#4CAF50" />
+
+                <Button
+                    android:id="@+id/btn_head_stop"
+                    android:layout_width="140dp"
+                    android:layout_height="wrap_content"
+                    android:text="停止"
+                    android:layout_marginTop="8dp"
+                    android:backgroundTint="#FF5252" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tv_chassis_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="就绪"
+            android:textSize="14sp"
+            android:textColor="#666666"
+            android:gravity="center" />
+
+    </LinearLayout>
+</ScrollView>

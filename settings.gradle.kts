@@ -16,6 +16,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven {
+            credentials.username = "agentMaven"
+            credentials.password = "agentMaven"
+            url = uri("https://npm.ainirobot.com/repository/maven-public/")
+        }
     }
 }
 

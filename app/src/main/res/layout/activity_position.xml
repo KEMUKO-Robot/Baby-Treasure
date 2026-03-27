@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <Button
+            android:id="@+id/btn_back_home"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="← 首页"
+            android:textSize="13sp"
+            android:minWidth="0dp"
+            android:paddingHorizontal="12dp"
+            android:layout_marginEnd="12dp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="点位导航"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_pose_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="定位状态：检测中..."
+        android:textSize="14sp"
+        android:textColor="#666666"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tv_nav_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="13sp"
+        android:textColor="#1976D2"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/btn_get_positions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="获取已配置点位列表" />
+
+    <TextView
+        android:id="@+id/tv_positions_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="点击点位可导航到该位置"
+        android:textSize="12sp"
+        android:textColor="#999999"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="4dp"
+        android:visibility="gone" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_positions"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="4dp" />
+
+</LinearLayout>
