@@ -3,10 +3,13 @@
 ![Android](https://img.shields.io/badge/Android-API%2026%2B-brightgreen)
 ![Kotlin](https://img.shields.io/badge/Kotlin-1.9-blue)
 
+**云端接口文档：** [openAPI（云端接口）.md](openAPI%28云端接口%29.md) — 鉴权、业务 API、豹小秘使用数据查询等（适用于服务端对接开放平台）。
+
 ---
 
 ## 目录
 
+- [云端 OpenAPI 接口文档](openAPI%28云端接口%29.md)（仓库内 Markdown，GitHub 点击即打开）
 - [一、项目说明](#一项目说明)
 - [二、产品型号说明](#二产品型号说明)
 - [三、适用版本说明](#三适用版本说明)
