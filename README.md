@@ -1509,6 +1509,21 @@ RobotApi.getInstance().getPersonInfoFromNet(
 )
 ```
 
+示例 App 的「摄像头 & 人脸识别」模块已提供「云端识别」按钮，调用链为：
+
+```text
+PersonApi.getInstance().getCompleteFaceList()
+    -> RobotApi.getInstance().getPictureById(reqId, person.id, 1, listener)
+    -> RobotApi.getInstance().getPersonInfoFromNet(reqId, person.id.toString(), picturePaths, listener)
+```
+
+注意事项：
+
+- `PersonApi` 返回的是当前视野内检测到的人员/人脸信息，不会因为云端已注册人脸就自动返回云端人员详情。
+- 调用云端识别前需要拿到完整人脸，通常要求 `person.id >= 0`。
+- `getPictureById` 返回的 `pictures` 需要转换为照片路径列表 `List<String>` 后传给 `getPersonInfoFromNet`，使用完需要删除临时照片。
+- 云端识别依赖机器人联网、云端人脸库授权和人员库同步；如果云端已注册但返回为空，优先检查这些条件。
+
 ##### 焦点跟随
 
 根据指定的人脸 ID 持续跟踪目标，头部云台跟随转动，底盘联动：

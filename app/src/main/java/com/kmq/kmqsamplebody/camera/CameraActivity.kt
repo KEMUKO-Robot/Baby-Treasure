@@ -14,6 +14,7 @@ import android.media.ImageReader
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Looper
 import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -33,6 +34,9 @@ import com.ainirobot.coreservice.client.surfaceshare.SurfaceShareApi
 import com.ainirobot.coreservice.client.surfaceshare.SurfaceShareBean
 import com.ainirobot.coreservice.client.surfaceshare.SurfaceShareListener
 import com.kmq.kmqsamplebody.R
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
 import java.nio.ByteBuffer
 
 /**
@@ -101,7 +105,18 @@ class CameraActivity : AppCompatActivity() {
     // ==================== 人脸识别 ====================
     private var personListener: PersonListener? = null
     private var isDetecting = false
+    private var isRecognizingFaceFromNet = false
+    private var facePreviewImageReader: ImageReader? = null
+    private var facePreviewThread: HandlerThread? = null
+    private var facePreviewHandler: Handler? = null
+    private var facePreviewBean: SurfaceShareBean? = null
+    private var isFacePreviewing = false
+    private var facePreviewFrameCount = 0
+    private val facePollingHandler = Handler(Looper.getMainLooper())
+    private var facePollingRunnable: Runnable? = null
+    private lateinit var ivFacePreview: ImageView
     private lateinit var tvFaceInfo: TextView
+    private lateinit var tvFaceNetResult: TextView
     private lateinit var tvFaceStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -460,17 +475,21 @@ class CameraActivity : AppCompatActivity() {
     // ================================================================
 
     private fun initFaceModule() {
+        ivFacePreview = findViewById(R.id.iv_face_preview)
         tvFaceInfo = findViewById(R.id.tv_face_info)
+        tvFaceNetResult = findViewById(R.id.tv_face_net_result)
         tvFaceStatus = findViewById(R.id.tv_face_status)
         val btnStart = findViewById<Button>(R.id.btn_face_start)
         val btnStop = findViewById<Button>(R.id.btn_face_stop)
         val btnRefresh = findViewById<Button>(R.id.btn_face_refresh)
+        val btnNetRecognize = findViewById<Button>(R.id.btn_face_net_recognize)
         val btnSdkFront = findViewById<Button>(R.id.btn_sdk_switch_front)
         val btnSdkBack = findViewById<Button>(R.id.btn_sdk_switch_back)
 
         btnStart.setOnClickListener { startFaceDetection() }
         btnStop.setOnClickListener { stopFaceDetection() }
         btnRefresh.setOnClickListener { refreshPersonList() }
+        btnNetRecognize.setOnClickListener { recognizeFaceFromNet() }
 
         btnSdkFront.setOnClickListener {
             switchSdkCamera(Definition.JSON_HEAD_FORWARD, "前置")
@@ -483,77 +502,381 @@ class CameraActivity : AppCompatActivity() {
     private fun startFaceDetection() {
         if (isDetecting) {
             tvFaceStatus.text = "人脸检测已在运行中"
+            Log.i(TAG, "startFaceDetection ignored: already detecting")
             return
         }
 
+        Log.i(TAG, "startFaceDetection")
+        if (cameraDevice != null || captureSession != null) {
+            Log.w(TAG, "startFaceDetection: Camera2 is open, closing it before VisionSDK detection")
+            closeCamera2()
+            tvCamera2Status.text = "Camera2 已关闭，避免占用视觉 SDK 摄像头"
+        }
+        startFacePreview()
         personListener = object : PersonListener() {
             override fun personChanged() {
                 super.personChanged()
+                Log.d(TAG, "personChanged callback")
                 runOnUiThread { refreshPersonList() }
             }
         }
 
         PersonApi.getInstance().registerPersonListener(personListener)
+        Log.i(TAG, "PersonListener registered")
         isDetecting = true
         tvFaceStatus.text = "人脸检测已开启，等待人员出现..."
+        startFacePolling()
         refreshPersonList()
     }
 
     private fun stopFaceDetection() {
         if (!isDetecting) {
             tvFaceStatus.text = "人脸检测未在运行"
+            Log.i(TAG, "stopFaceDetection ignored: not detecting")
             return
         }
 
+        Log.i(TAG, "stopFaceDetection")
         personListener?.let {
             PersonApi.getInstance().unregisterPersonListener(it)
+            Log.i(TAG, "PersonListener unregistered")
         }
         personListener = null
         isDetecting = false
+        stopFacePolling()
+        stopFacePreview()
         tvFaceInfo.text = "尚未检测到人员"
+        tvFaceNetResult.text = "尚未进行云端识别"
         tvFaceStatus.text = "人脸检测已停止"
     }
 
     private fun refreshPersonList() {
         try {
             val persons: List<Person>? = PersonApi.getInstance().getAllPersons()
+            logPersonApiSnapshot(persons)
             if (persons.isNullOrEmpty()) {
+                Log.d(TAG, "refreshPersonList: no persons")
                 tvFaceInfo.text = "当前视野内无人员"
-                tvFaceStatus.text = "检测中 — 共 0 人"
+                if (!isRecognizingFaceFromNet) {
+                    tvFaceStatus.text = "检测中 — 共 0 人，预览帧 $facePreviewFrameCount"
+                }
                 return
             }
 
+            Log.i(TAG, "refreshPersonList: persons=${persons.size}")
             val sb = StringBuilder()
             sb.append("共检测到 ${persons.size} 人：\n\n")
             for ((index, p) in persons.withIndex()) {
+                Log.d(TAG, "person[$index]: ${personToLogString(p)}")
                 sb.append("【人员 ${index + 1}】\n")
-                sb.append("  ID: ${p.id}")
+                sb.append("  本地人脸ID: ${p.id}\n")
                 sb.append("  距离: ${String.format("%.2f", p.distance)}m\n")
                 sb.append("  人脸角度: X=${String.format("%.1f", p.faceAngleX)}° Y=${String.format("%.1f", p.faceAngleY)}°\n")
                 sb.append("  人脸位置: (${p.faceX}, ${p.faceY}) ")
                 if (p.remoteFaceId != null && p.remoteFaceId.isNotEmpty()) {
-                    sb.append("  已注册: ${p.remoteFaceId}\n")
+                    sb.append("\n  云端人脸ID: ${p.remoteFaceId}\n")
+                } else {
+                    sb.append("\n  云端人脸ID: 未返回\n")
                 }
                 sb.append("\n")
             }
 
             tvFaceInfo.text = sb.toString().trimEnd()
-            tvFaceStatus.text = "检测中 — 共 ${persons.size} 人"
+            if (!isRecognizingFaceFromNet) {
+                tvFaceStatus.text = "检测中 — 共 ${persons.size} 人"
+            }
         } catch (e: Exception) {
             tvFaceInfo.text = "获取人员失败: ${e.message}"
             Log.e(TAG, "refreshPersonList error", e)
         }
     }
 
+    private fun startFacePolling() {
+        stopFacePolling()
+        facePollingRunnable = object : Runnable {
+            override fun run() {
+                if (!isDetecting) return
+                refreshPersonList()
+                facePollingHandler.postDelayed(this, 1000L)
+            }
+        }
+        facePollingHandler.postDelayed(facePollingRunnable!!, 1000L)
+        Log.i(TAG, "startFacePolling")
+    }
+
+    private fun stopFacePolling() {
+        facePollingRunnable?.let { facePollingHandler.removeCallbacks(it) }
+        facePollingRunnable = null
+        Log.i(TAG, "stopFacePolling")
+    }
+
+    private fun startFacePreview() {
+        if (isFacePreviewing) {
+            Log.i(TAG, "startFacePreview ignored: already previewing")
+            return
+        }
+
+        Log.i(TAG, "startFacePreview")
+        facePreviewFrameCount = 0
+        startFacePreviewThread()
+        facePreviewImageReader = ImageReader.newInstance(
+            SHARE_IMAGE_WIDTH, SHARE_IMAGE_HEIGHT,
+            ImageFormat.YUV_420_888, MAX_CACHE_IMAGES
+        )
+        facePreviewImageReader?.setOnImageAvailableListener({ reader ->
+            var image: Image? = null
+            try {
+                image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
+                facePreviewFrameCount++
+                if (facePreviewFrameCount == 1 || facePreviewFrameCount % 30 == 0) {
+                    Log.d(TAG, "face preview frame received: count=$facePreviewFrameCount size=${image.width}x${image.height}")
+                }
+                val bitmap = yuvImageToBitmap(image)
+                if (bitmap != null) {
+                    runOnUiThread { ivFacePreview.setImageBitmap(bitmap) }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "face preview onImageAvailable error", e)
+            } finally {
+                image?.close()
+            }
+        }, facePreviewHandler)
+
+        if (facePreviewBean == null) {
+            facePreviewBean = SurfaceShareBean().apply { name = "KmqSampleBodyFacePreview" }
+        }
+
+        SurfaceShareApi.getInstance().requestImageFrame(
+            facePreviewImageReader!!.surface, facePreviewBean,
+            object : SurfaceShareListener() {
+                override fun onError(error: Int, message: String?) {
+                    super.onError(error, message)
+                    Log.e(TAG, "face preview error: code=$error message=$message")
+                    runOnUiThread {
+                        tvFaceStatus.text = "人脸预览错误: code=$error $message"
+                        isFacePreviewing = false
+                    }
+                }
+
+                override fun onStatusUpdate(status: Int, message: String?) {
+                    super.onStatusUpdate(status, message)
+                    Log.d(TAG, "face preview status: status=$status message=$message")
+                }
+            }
+        )
+
+        isFacePreviewing = true
+    }
+
+    private fun stopFacePreview() {
+        if (!isFacePreviewing && facePreviewImageReader == null) {
+            Log.i(TAG, "stopFacePreview ignored: not previewing")
+            return
+        }
+
+        Log.i(TAG, "stopFacePreview")
+        facePreviewBean?.let {
+            SurfaceShareApi.getInstance().abandonImageFrame(it)
+        }
+        facePreviewImageReader?.close()
+        facePreviewImageReader = null
+        stopFacePreviewThread()
+        facePreviewBean = null
+        isFacePreviewing = false
+        facePreviewFrameCount = 0
+    }
+
+    private fun startFacePreviewThread() {
+        if (facePreviewThread == null) {
+            facePreviewThread = HandlerThread("FacePreviewThread").also { it.start() }
+            facePreviewHandler = Handler(facePreviewThread!!.looper)
+        }
+    }
+
+    private fun stopFacePreviewThread() {
+        facePreviewThread?.quitSafely()
+        try {
+            facePreviewThread?.join(100)
+        } catch (_: InterruptedException) {}
+        facePreviewThread = null
+        facePreviewHandler = null
+    }
+
+    private fun recognizeFaceFromNet() {
+        if (isRecognizingFaceFromNet) {
+            tvFaceStatus.text = "云端识别正在进行中"
+            Log.i(TAG, "recognizeFaceFromNet ignored: already recognizing")
+            return
+        }
+
+        val person = try {
+            val completeFaces = PersonApi.getInstance().getCompleteFaceList()
+            Log.i(TAG, "recognizeFaceFromNet: completeFaces=${completeFaces?.size ?: 0}")
+            completeFaces?.forEachIndexed { index, face ->
+                Log.d(TAG, "completeFace[$index]: ${personToLogString(face)}")
+            }
+            completeFaces?.firstOrNull { it.id >= 0 }
+        } catch (e: Exception) {
+            val text = "获取完整人脸失败: ${e.message}"
+            tvFaceStatus.text = text
+            tvFaceNetResult.text = text
+            Log.e(TAG, "getCompleteFaceList error", e)
+            return
+        }
+
+        if (person == null) {
+            val text = "未找到完整人脸，请保持 1~3 米并正对摄像头"
+            tvFaceStatus.text = text
+            tvFaceNetResult.text = text
+            Log.w(TAG, "recognizeFaceFromNet: no complete face with id >= 0")
+            return
+        }
+
+        Log.i(TAG, "recognizeFaceFromNet: selected face ${personToLogString(person)}")
+        isRecognizingFaceFromNet = true
+        tvFaceStatus.text = "正在获取人脸照片..."
+        tvFaceNetResult.text = "云端识别中...\n本地人脸ID: ${person.id}\n正在获取人脸照片"
+        RobotApi.getInstance().getPictureById(
+            reqId++, person.id, 1,
+            object : CommandListener() {
+                override fun onResult(result: Int, message: String?) {
+                    Log.i(TAG, "getPictureById result=$result message=$message")
+                    runOnUiThread {
+                        try {
+                            val json = JSONObject(message ?: "{}")
+                            if (Definition.RESPONSE_OK != json.optString("status")) {
+                                isRecognizingFaceFromNet = false
+                                tvFaceStatus.text = "获取人脸照片失败"
+                                tvFaceNetResult.text = "获取人脸照片失败:\n$message"
+                                Log.w(TAG, "getPictureById failed: $message")
+                                return@runOnUiThread
+                            }
+
+                            val pictures = json.optJSONArray("pictures")
+                            if (pictures == null || pictures.length() == 0) {
+                                isRecognizingFaceFromNet = false
+                                tvFaceStatus.text = "获取人脸照片为空"
+                                tvFaceNetResult.text = "获取人脸照片为空:\n$message"
+                                Log.w(TAG, "getPictureById returned empty pictures")
+                                return@runOnUiThread
+                            }
+
+                            val picturePaths = jsonArrayToStringList(pictures)
+                            Log.i(TAG, "getPictureById pictures=$picturePaths")
+                            tvFaceStatus.text = "已获取人脸照片，正在云端识别..."
+                            tvFaceNetResult.text = "云端识别中...\n本地人脸ID: ${person.id}\n照片数量: ${picturePaths.size}\n正在请求云端"
+                            requestPersonInfoFromNet(person.id.toString(), picturePaths)
+                        } catch (e: Exception) {
+                            isRecognizingFaceFromNet = false
+                            tvFaceStatus.text = "解析人脸照片结果失败"
+                            tvFaceNetResult.text = "解析人脸照片结果失败: ${e.message}\nraw: $message"
+                            Log.e(TAG, "getPictureById result parse error", e)
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    private fun requestPersonInfoFromNet(faceId: String, pictures: List<String>) {
+        Log.i(TAG, "requestPersonInfoFromNet: faceId=$faceId pictures=$pictures")
+        RobotApi.getInstance().getPersonInfoFromNet(
+            reqId++, faceId, pictures,
+            object : CommandListener() {
+                override fun onResult(result: Int, message: String?) {
+                    Log.i(TAG, "getPersonInfoFromNet result=$result message=$message")
+                    runOnUiThread {
+                        isRecognizingFaceFromNet = false
+                        deletePictureFiles(pictures)
+                        try {
+                            val json = JSONObject(message ?: "{}")
+                            val people = json.optJSONObject("people")
+                            val sb = StringBuilder()
+                            sb.append("云端识别返回：\n")
+                            sb.append("本地人脸ID: $faceId\n")
+                            sb.append("status: ${json.optString("status")}\n")
+                            sb.append("result: $result\n")
+                            if (people != null) {
+                                sb.append("name: ${people.optString("name")}\n")
+                                sb.append("gender: ${people.optString("gender")}\n")
+                                sb.append("age: ${people.optString("age")}\n")
+                            }
+                            sb.append("raw: $message")
+                            tvFaceNetResult.text = sb.toString()
+                            tvFaceStatus.text = "云端识别完成"
+                        } catch (e: Exception) {
+                            tvFaceNetResult.text = "云端识别原始返回:\n$message"
+                            tvFaceStatus.text = "解析云端识别结果失败"
+                            Log.e(TAG, "getPersonInfoFromNet result parse error", e)
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    private fun jsonArrayToStringList(array: JSONArray): List<String> {
+        val result = mutableListOf<String>()
+        for (i in 0 until array.length()) {
+            val value = array.optString(i)
+            if (value.isNotEmpty()) {
+                result.add(value)
+            }
+        }
+        return result
+    }
+
+    private fun deletePictureFiles(pictures: List<String>) {
+        for (path in pictures) {
+            if (path.isNotEmpty()) {
+                val deleted = runCatching { File(path).delete() }.getOrDefault(false)
+                Log.d(TAG, "deletePictureFile path=$path deleted=$deleted")
+            }
+        }
+    }
+
+    private fun logPersonApiSnapshot(persons: List<Person>?) {
+        val faceList = runCatching { PersonApi.getInstance().getAllFaceList() }.getOrNull()
+        val bodyList = runCatching { PersonApi.getInstance().getAllBodyList() }.getOrNull()
+        val completeFaceList = runCatching { PersonApi.getInstance().getCompleteFaceList() }.getOrNull()
+        val focusPerson = runCatching { PersonApi.getInstance().getFocusPerson() }.getOrNull()
+        Log.i(
+            TAG,
+            "PersonApi snapshot: all=${persons?.size ?: 0}, " +
+                "face=${faceList?.size ?: 0}, body=${bodyList?.size ?: 0}, " +
+                "completeFace=${completeFaceList?.size ?: 0}, " +
+                "focus=${focusPerson?.let { personToLogString(it) } ?: "null"}, " +
+                "previewing=$isFacePreviewing, previewFrames=$facePreviewFrameCount"
+        )
+        faceList?.forEachIndexed { index, person ->
+            Log.d(TAG, "faceList[$index]: ${personToLogString(person)}")
+        }
+        bodyList?.forEachIndexed { index, person ->
+            Log.d(TAG, "bodyList[$index]: ${personToLogString(person)}")
+        }
+        completeFaceList?.forEachIndexed { index, person ->
+            Log.d(TAG, "completeFaceList[$index]: ${personToLogString(person)}")
+        }
+    }
+
+    private fun personToLogString(person: Person): String {
+        return "id=${person.id}, distance=${person.distance}, " +
+            "faceAngleX=${person.faceAngleX}, faceAngleY=${person.faceAngleY}, " +
+            "faceX=${person.faceX}, faceY=${person.faceY}, " +
+            "remoteFaceId=${person.remoteFaceId}"
+    }
+
     private fun switchSdkCamera(camera: String, label: String) {
         tvFaceStatus.text = "切换视觉SDK摄像头到${label}..."
+        Log.i(TAG, "switchSdkCamera: camera=$camera label=$label")
         RobotApi.getInstance().switchCamera(
             reqId++, camera,
             object : CommandListener() {
                 override fun onResult(result: Int, message: String?) {
+                    Log.i(TAG, "switchSdkCamera result=$result message=$message")
                     runOnUiThread {
                         try {
-                            val json = org.json.JSONObject(message ?: "{}")
+                            val json = JSONObject(message ?: "{}")
                             if ("ok" == json.optString("status")) {
                                 tvFaceStatus.text = "视觉SDK已切换到${label}摄像头"
                             } else {
@@ -572,9 +895,23 @@ class CameraActivity : AppCompatActivity() {
     //  生命周期
     // ================================================================
 
+    override fun onResume() {
+        super.onResume()
+        if (isDetecting && !isFacePreviewing) {
+            Log.i(TAG, "onResume: restart face preview")
+            startFacePreview()
+        }
+        if (isDetecting && facePollingRunnable == null) {
+            Log.i(TAG, "onResume: restart face polling")
+            startFacePolling()
+        }
+    }
+
     override fun onPause() {
         super.onPause()
         closeCamera2()
+        stopFacePolling()
+        stopFacePreview()
     }
 
     override fun onDestroy() {
@@ -582,5 +919,6 @@ class CameraActivity : AppCompatActivity() {
         closeCamera2()
         stopSurfaceShare()
         stopFaceDetection()
+        stopFacePreview()
     }
 }

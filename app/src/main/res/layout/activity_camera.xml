@@ -201,6 +201,14 @@
                 android:textColor="#999999"
                 android:layout_marginBottom="8dp" />
 
+            <ImageView
+                android:id="@+id/iv_face_preview"
+                android:layout_width="match_parent"
+                android:layout_height="240dp"
+                android:layout_marginBottom="8dp"
+                android:background="#000000"
+                android:scaleType="fitCenter" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -232,6 +240,13 @@
                     android:text="刷新人员" />
             </LinearLayout>
 
+            <Button
+                android:id="@+id/btn_face_net_recognize"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="云端识别"
+                android:layout_marginBottom="6dp" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -260,6 +275,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="尚未检测到人员"
+                android:textSize="13sp"
+                android:textColor="#333333"
+                android:lineSpacingExtra="4dp"
+                android:padding="8dp"
+                android:background="#FFFFFF"
+                android:minHeight="80dp" />
+
+            <TextView
+                android:id="@+id/tv_face_net_result"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="尚未进行云端识别"
                 android:textSize="13sp"
                 android:textColor="#333333"
                 android:lineSpacingExtra="4dp"
